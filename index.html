@@ -3,20 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的專案作品集</title>
+    <title>我的專案傳送門</title>
     <style>
-        body { font-family: sans-serif; margin: 40px; background: #f4f4f9; color: #333; }
-        h1 { color: #222; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 600px; margin: 40px auto; padding: 0 20px; background: #f9f9fb; color: #333; }
+        h1 { color: #111; border-bottom: 2px solid #eee; padding-bottom: 10px; }
         ul { list-style: none; padding: 0; }
-        li { margin: 10px 0; background: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        a { text-decoration: none; color: #0066cc; font-weight: bold; font-size: 1.1rem; }
-        a:hover { text-decoration: underline; }
+        li { margin: 12px 0; }
+        a { display: block; padding: 15px; background: white; color: #0066cc; text-decoration: none; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.04); font-weight: bold; transition: 0.2s; }
+        a:hover { background: #0066cc; color: white; transform: translateY(-2px); }
     </style>
 </head>
 <body>
-    <h1>專案控制台</h1>
-    <ul>
-        <!-- LINKS_PLACEHOLDER -->
-    </ul>
+
+    <h1>📂 我的專案傳送門</h1>
+    <ul id="project-list">正在自動搜尋資料夾...</ul>
+
+    <script>
+        // ==================== 🛠️ 唯一需要修改的地方 ====================
+        const USERNAME = '你的_GITHUB_帳號'; // 換成你的 GitHub 帳號
+        const REPO = '你的_REPOSITORY_名稱';   // 換成你的 Repository 名稱
+        // =============================================================
+
+        async function loadLinks() {
+            const list = document.getElementById('project-list');
+            try {
+                // 直接跟 GitHub API 要這個儲存庫底下的所有檔案與資料夾清單
+                const res = await fetch(`https://api.github.com/repos/${USERNAME}/${REPO}/contents/`);
+                const items = await res.json();
+                
+                list.innerHTML = ''; // 清除「正在搜尋」的文字
+
+                // 篩選出「是資料夾」而且「不是隱藏資料夾（開頭不是點 .）」的項目
+                const folders = items.filter(item => item.type === 'dir' && !item.name.startsWith('.'));
+
+                if (folders.length === 0) {
+                    list.innerHTML = '<li>目前還沒有任何資料夾喔！</li>';
+                    return;
+                }
+
+                // 自動把資料夾塞進清單，連結直接指向該資料夾底下的 index.html
+                folders.forEach(folder => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<a href="./${folder.name}/index.html">🔗 前往 ${folder.name}</a>`;
+                    list.appendChild(li);
+                });
+
+            } catch (err) {
+                console.error(err);
+                list.innerHTML = '<li>讀取失敗，請檢查帳號或儲存庫名稱是否正確。</li>';
+            }
+        }
+
+        loadLinks();
+    </script>
 </body>
 </html>
