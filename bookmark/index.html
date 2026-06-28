@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="default">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Harness Bookmark Manager</title>
+    <!-- External QR Library for zero-install simplicity -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        /* ==========================================
+           THEME ENGINE (10 Themes via CSS Variables)
+           ========================================== */
+        :root, [data-theme="default"] {
+            --bg-primary: #ffffff; --bg-secondary: #f3f4f6; --bg-tertiary: #e5e7eb;
+            --text-primary: #111827; --text-secondary: #4b5563;
+            --accent: #3b82f6; --accent-hover: #2563eb; --danger: #ef4444;
+            --border: #d1d5db; --shadow: rgba(0,0,0,0.1);
+        }
+        [data-theme="dark"] {
+            --bg-primary: #1f2937; --bg-secondary: #111827; --bg-tertiary: #374151;
+            --text-primary: #f9fafb; --text-secondary: #d1d5db;
+            --accent: #60a5fa; --accent-hover: #3b82f6; --danger: #f87171;
+            --border: #4b5563; --shadow: rgba(0,0,0,0.5);
+        }
+        [data-theme="ocean"] {
+            --bg-primary: #e0f2fe; --bg-secondary: #bae6fd; --bg-tertiary: #7dd3fc;
+            --text-primary: #0c4a6e; --text-secondary: #075985;
+            --accent: #0284c7; --accent-hover: #0369a1; --danger: #be123c;
+            --border: #38bdf8; --shadow: rgba(14,165,233,0.2);
+        }
+        [data-theme="forest"] {
+            --bg-primary: #dcfce7; --bg-secondary: #bbf7d0; --bg-tertiary: #86efac;
+            --text-primary: #14532d; --text-secondary: #166534;
+            --accent: #16a34a; --accent-hover: #15803d; --danger: #dc2626;
+            --border: #4ade80; --shadow: rgba(34,197,94,0.2);
+        }
+        [data-theme="sunset"] {
+            --bg-primary: #fff7ed; --bg-secondary: #ffedd5; --bg-tertiary: #fed7aa;
+            --text-primary: #7c2d12; --text-secondary: #9a3412;
+            --accent: #ea580c; --accent-hover: #c2410c; --danger: #b91c1c;
+            --border: #fb923c; --shadow: rgba(249,115,22,0.2);
+        }
+        [data-theme="cyberpunk"] {
+            --bg-primary: #0f0f1a; --bg-secondary: #1a1a2e; --bg-tertiary: #16213e;
+            --text-primary: #e0e0e0; --text-secondary: #a0a0a0;
+            --accent: #00ffcc; --accent-hover: #00b38f; --danger: #ff0055;
+            --border: #00ffcc; --shadow: rgba(0,255,204,0.3);
+        }
+        [data-theme="minimal"] {
+            --bg-primary: #fafafa; --bg-secondary: #ffffff; --bg-tertiary: #f5f5f5;
+            --text-primary: #000000; --text-secondary: #525252;
+            --accent: #000000; --accent-hover: #404040; --danger: #737373;
+            --border: #e5e5e5; --shadow: rgba(0,0,0,0.05);
+        }
+        [data-theme="rose"] {
+            --bg-primary: #fff1f2; --bg-secondary: #ffe4e6; --bg-tertiary: #fecdd3;
+            --text-primary: #881337; --text-secondary: #9f1239;
+            --accent: #e11d48; --accent-hover: #be123c; --danger: #9f1239;
+            --border: #fb7185; --shadow: rgba(225,29,72,0.2);
+        }
+        [data-theme="monochrome"] {
+            --bg-primary: #f5f5f5; --bg-secondary: #e5e5e5; --bg-tertiary: #d4d4d4;
+            --text-primary: #171717; --text-secondary: #404040;
+            --accent: #525252; --accent-hover: #262626; --danger: #171717;
+            --border: #a3a3a3; --shadow: rgba(0,0,0,0.1);
+        }
+        [data-theme="high-contrast"] {
+            --bg-primary: #000000; --bg-secondary: #1a1a1a; --bg-tertiary: #333333;
+            --text-primary: #ffffff; --text-secondary: #e5e5e5;
+            --accent: #ffff00; --accent-hover: #cccc00; --danger: #ff0000;
+            --border: #ffffff; --shadow: rgba(255,255,255,0.2);
+        }
+
+        /* ==========================================
+           GLOBAL STYLES & LAYOUT
+           ========================================== */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg-primary); color: var(--text-primary);
+            display: flex; height: 100vh; overflow: hidden;
+            transition: background 0.3s, color 0.3s;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 250px; background: var(--bg-secondary); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; padding: 1rem;
+        }
+        .sidebar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .folder-list { flex: 1; overflow-y: auto; }
+        .folder-item {
+            padding: 0.6rem 0.8rem; margin-bottom: 0.4rem; border-radius: 6px;
+            cursor: pointer; display: flex; justify-content: space-between; align-items: center;
+            background: var(--bg-tertiary); transition: all 0.2s;
+        }
+        .folder-item.active, .folder-item:hover { background: var(--accent); color: white; }
+        .folder-item.drag-over { border: 2px dashed var(--accent); }
+
+        /* Main Content */
+        .main-content { flex: 1; display: flex; flex-direction: column; padding: 1.5rem; overflow-y: auto; }
+        .main-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.5rem; }
+        .bookmark-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 1rem; flex: 1; align-content: start;
+        }
+        .bookmark-card {
+            background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px;
+            padding: 1rem; text-align: center; cursor: pointer; transition: all 0.2s;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            min-height: 100px; position: relative;
+        }
+        .bookmark-card:hover { transform: translateY(-2px); box-shadow: 0 4px 6px var(--shadow); }
+        .bookmark-card.dragging { opacity: 0.5; cursor: grabbing; }
+        .bookmark-card .title { font-weight: 600; word-break: break-word; }
+        .bookmark-card .actions {
+            position: absolute; top: 5px; right: 5px; display: none; gap: 4px;
+        }
+        .bookmark-card:hover .actions { display: flex; }
+
+        /* Buttons & Inputs */
+        button, .btn {
+            padding: 0.5rem 1rem; border: none; border-radius: 6px; cursor: pointer;
+            font-weight: 500; transition: all 0.2s; background: var(--accent); color: white;
+        }
+        button:hover { background: var(--accent-hover); }
+        .btn-danger { background: var(--danger); }
+        .btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+        .btn-icon { background: transparent; color: var(--text-secondary); padding: 0.2rem; }
+        .btn-icon:hover { color: var(--danger); background: transparent; }
+        
+        input, select {
+            padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px;
+            background: var(--bg-primary); color: var(--text-primary); width: 100%; margin-bottom: 1rem;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center;
+            z-index: 100;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--bg-primary); padding: 2rem; border-radius: 12px;
+            width: 100%; max-width: 400px; box-shadow: 0 10px 25px var(--shadow);
+        }
+        .modal h3 { margin-bottom: 1rem; }
+        .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+
+        /* Theme Switcher */
+        .theme-switcher { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+        .theme-dot {
+            width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid var(--border);
+        }
+
+        /* QR Code */
+        #qrcode-display { display: flex; justify-content: center; margin: 1rem 0; }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>Folders</h2>
+            <button id="btn-add-folder" class="btn-sm">+ New</button>
+        </div>
+        <div id="folder-list" class="folder-list"></div>
+        
+        <!-- Theme Switcher integrated in Sidebar -->
+        <div class="theme-switcher" id="theme-switcher"></div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="main-header">
+            <h2 id="current-folder-title">All Bookmarks</h2>
+            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button id="btn-import" class="btn-sm">Import</button>
+                <button id="btn-export" class="btn-sm">Export</button>
+                <button id="btn-share-qr">Share QR</button>
+                <button id="btn-add-bookmark">+ Bookmark</button>
+            </div>
+        </div>
+        <div id="bookmark-grid" class="bookmark-grid"></div>
+    </main>
+
+    <!-- Modals -->
+    <div id="modal-overlay" class="modal-overlay">
+        <div class="modal" id="modal-content"></div>
+    </div>
+
+    <script>
+        /**
+         * ==========================================
+         * HARNESS ENGINEERING ARCHITECTURE
+         * Strict MVC, Event-Driven, Highly Modular
+         * ==========================================
+         */
+
+        // 1. EVENT BUS (Pub/Sub for decoupling)
+        class EventBus {
+            constructor() { this.events = {}; }
+            /** @param {string} event @param {Function} callback */
+            on(event, callback) {
+                if (!this.events[event]) this.events[event] = [];
+                this.events[event].push(callback);
+            }
+            /** @param {string} event @param {any} data */
+            emit(event, data) {
+                if (this.events[event]) this.events[event].forEach(cb => cb(data));
+            }
+        }
+
+        // 2. STATE MANAGER (Single Source of Truth)
+        class StateManager {
+            /** @param {EventBus} bus */
+            constructor(bus) {
+                this.bus = bus;
+                this.state = this._loadState();
+            }
+            _loadState() {
+                const saved = localStorage.getItem('harness_bookmarks');
+                return saved ? JSON.parse(saved) : {
+                    folders: [{ id: 'default', name: 'Default', order: 0 }],
+                    bookmarks: [],
+                    activeFolder: 'default',
+                    theme: 'default'
+                };
+            }
+            save() { localStorage.setItem('harness_bookmarks', JSON.stringify(this.state)); }
+            getState() { return this.state; }
+            
+            /** @param {string} key @param {any} value */
+            update(key, value) {
+                this.state[key] = value;
+                this.save();
+                this.bus.emit('state:changed', { key, value });
+            }
+        }
+
+        // 3. STORAGE & UTILS
+        class Utils {
+            static generateId() { return Math.random().toString(36).substr(2, 9); }
+        }
+
+        // 4. THEME ENGINE
+        class ThemeEngine {
+            /** @param {StateManager} store @param {EventBus} bus */
+            constructor(store, bus) {
+                this.store = store;
+                this.bus = bus;
+                this.themes = ['default', 'dark', 'ocean', 'forest', 'sunset', 'cyberpunk', 'minimal', 'rose', 'monochrome', 'high-contrast'];
+                this.themeColors = {
+                    default: '#3b82f6', dark: '#1f2937', ocean: '#0284c7', forest: '#16a34a',
+                    sunset: '#ea580c', cyberpunk: '#00ffcc', minimal: '#000000', rose: '#e11d48',
+                    monochrome: '#525252', 'high-contrast': '#ffff00'
+                };
+            }
+            init() {
+                const container = document.getElementById('theme-switcher');
+                this.themes.forEach(theme => {
+                    const dot = document.createElement('div');
+                    dot.className = 'theme-dot';
+                    dot.style.background = this.themeColors[theme];
+                    dot.title = theme;
+                    dot.onclick = () => this.setTheme(theme);
+                    container.appendChild(dot);
+                });
+                this.setTheme(this.store.getState().theme);
+            }
+            /** @param {string} themeName */
+            setTheme(themeName) {
+                document.documentElement.setAttribute('data-theme', themeName);
+                this.store.update('theme', themeName);
+            }
+        }
+
+        // 5. MODAL CONTROLLER
+        class ModalController {
+            constructor() {
+                this.overlay = document.getElementById('modal-overlay');
+                this.content = document.getElementById('modal-content');
+                this.overlay.onclick = (e) => { if (e.target === this.overlay) this.close(); };
+            }
+            /** @param {string} html */
+            open(html) {
+                this.content.innerHTML = html;
+                this.overlay.classList.add('active');
+            }
+            close() { this.overlay.classList.remove('active'); }
+        }
+
+        // 6. QR SERVICE
+        class QRService {
+            constructor(modal) { this.modal = modal; }
+            /** @param {object} data */
+            show(data) {
+                const jsonStr = JSON.stringify(data);
+                const html = `
+                    <h3>Share Bookmarks</h3>
+                    <p style="margin-bottom:1rem; font-size:0.9rem; color:var(--text-secondary)">Scan to import these bookmarks.</p>
+                    <div id="qrcode-display"></div>
+                    <div class="modal-actions"><button onclick="app.modal.close()">Close</button></div>
+                `;
+                this.modal.open(html);
+                
+                // Clear previous and generate new
+                document.getElementById('qrcode-display').innerHTML = '';
+                new QRCode(document.getElementById("qrcode-display"), {
+                    text: jsonStr, width: 200, height: 200,
+                    colorDark : "#000000", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.L
+                });
+            }
+        }
+
+        // 7. DATA SERVICE (Handles Import/Export)
+        class DataService {
+            /** @param {StateManager} store @param {EventBus} bus */
+            constructor(store, bus) {
+                this.store = store;
+                this.bus = bus;
+            }
+            exportData() {
+                const state = this.store.getState();
+                const data = { folders: state.folders, bookmarks: state.bookmarks };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'harness_bookmarks_export.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+            importData(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if (data.folders && data.bookmarks) {
+                            this.bus.emit('data:import', data);
+                        } else {
+                            alert('Invalid file format. Missing folders or bookmarks.');
+                        }
+                    } catch (err) {
+                        alert('Error parsing JSON file.');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        // 8. DRAG & DROP CONTROLLER
+        class DragDropController {
+            /** @param {StateManager} store @param {EventBus} bus */
+            constructor(store, bus) {
+                this.store = store;
+                this.bus = bus;
+                this.draggedItem = null;
+            }
+            /** @param {HTMLElement} el @param {string} type @param {string} id */
+            makeDraggable(el, type, id) {
+                el.draggable = true;
+                el.ondragstart = (e) => {
+                    this.draggedItem = { type, id };
+                    el.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                };
+                el.ondragend = () => { el.classList.remove('dragging'); this.draggedItem = null; };
+            }
+            /** @param {HTMLElement} el @param {string} targetFolderId */
+            makeDropTarget(el, targetFolderId) {
+                el.ondragover = (e) => { e.preventDefault(); el.classList.add('drag-over'); };
+                el.ondragleave = () => el.classList.remove('drag-over');
+                el.ondrop = (e) => {
+                    e.preventDefault();
+                    el.classList.remove('drag-over');
+                    if (this.draggedItem) {
+                        if (this.draggedItem.type === 'bookmark') {
+                            this.bus.emit('bookmark:move', { bookmarkId: this.draggedItem.id, targetFolderId });
+                        } else if (this.draggedItem.type === 'folder') {
+                            this.bus.emit('folder:reorder', { draggedFolderId: this.draggedItem.id, targetFolderId });
+                        }
+                    }
+                };
+            }
+        }
+
+        // 9. UI RENDERER
+        class UIRenderer {
+            /** 
+             * @param {StateManager} store 
+             * @param {EventBus} bus 
+             * @param {ModalController} modal 
+             * @param {DragDropController} dnd 
+             */
+            constructor(store, bus, modal, dnd) {
+                this.store = store; this.bus = bus; this.modal = modal; this.dnd = dnd;
+                this.folderListEl = document.getElementById('folder-list');
+                this.bookmarkGridEl = document.getElementById('bookmark-grid');
+                this.titleEl = document.getElementById('current-folder-title');
+            }
+
+            renderAll() {
+                this.renderFolders();
+                this.renderBookmarks();
+            }
+
+            renderFolders() {
+                const state = this.store.getState();
+                this.folderListEl.innerHTML = '';
+                
+                const sortedFolders = [...state.folders].sort((a, b) => a.order - b.order);
+                sortedFolders.forEach(folder => {
+                    const el = document.createElement('div');
+                    el.className = `folder-item ${folder.id === state.activeFolder ? 'active' : ''}`;
+                    el.innerHTML = `
+                        <span>${folder.name}</span>
+                        <div style="display:flex; gap:4px;">
+                            <button class="btn-icon btn-edit-folder" data-id="${folder.id}">✏️</button>
+                            ${folder.id !== 'default' ? `<button class="btn-icon btn-del-folder" data-id="${folder.id}">🗑️</button>` : ''}
+                        </div>
+                    `;
+                    el.onclick = (e) => {
+                        if(!e.target.classList.contains('btn-icon')) this.bus.emit('folder:select', folder.id);
+                    };
+                    
+                    // DnD
+                    this.dnd.makeDraggable(el, 'folder', folder.id);
+                    this.dnd.makeDropTarget(el, folder.id);
+
+                    // Actions
+                    el.querySelector('.btn-edit-folder').onclick = (e) => { e.stopPropagation(); this._showFolderModal(folder); };
+                    const delBtn = el.querySelector('.btn-del-folder');
+                    if(delBtn) delBtn.onclick = (e) => { e.stopPropagation(); this.bus.emit('folder:delete', folder.id); };
+
+                    this.folderListEl.appendChild(el);
+                });
+            }
+
+            renderBookmarks() {
+                const state = this.store.getState();
+                const activeFolder = state.folders.find(f => f.id === state.activeFolder);
+                this.titleEl.textContent = activeFolder ? activeFolder.name : 'Bookmarks';
+                
+                this.bookmarkGridEl.innerHTML = '';
+                const bookmarks = state.bookmarks
+                    .filter(b => b.folderId === state.activeFolder)
+                    .sort((a, b) => a.order - b.order);
+
+                if (bookmarks.length === 0) {
+                    this.bookmarkGridEl.innerHTML = '<p style="color:var(--text-secondary); grid-column: 1/-1; text-align:center; margin-top:2rem;">No bookmarks here. Click "+ Bookmark" to add one.</p>';
+                    return;
+                }
+
+                bookmarks.forEach(bm => {
+                    const el = document.createElement('div');
+                    el.className = 'bookmark-card';
+                    // Removed URL display as requested
+                    el.innerHTML = `
+                        <div class="actions">
+                            <button class="btn-icon btn-edit-bm" data-id="${bm.id}">✏️</button>
+                            <button class="btn-icon btn-del-bm" data-id="${bm.id}">🗑️</button>
+                        </div>
+                        <div class="title">${bm.title}</div>
+                    `;
+                    
+                    // Single click opens URL (ignoring clicks on action buttons)
+                    el.onclick = (e) => {
+                        if (!e.target.closest('.actions')) {
+                            window.open(bm.url, '_blank');
+                        }
+                    };
+                    
+                    // DnD
+                    this.dnd.makeDraggable(el, 'bookmark', bm.id);
+
+                    // Actions
+                    el.querySelector('.btn-edit-bm').onclick = (e) => { e.stopPropagation(); this._showBookmarkModal(bm); };
+                    el.querySelector('.btn-del-bm').onclick = (e) => { e.stopPropagation(); this.bus.emit('bookmark:delete', bm.id); };
+
+                    this.bookmarkGridEl.appendChild(el);
+                });
+            }
+
+            _showFolderModal(folder = null) {
+                const isEdit = !!folder;
+                const html = `
+                    <h3>${isEdit ? 'Edit' : 'New'} Folder</h3>
+                    <input type="text" id="input-folder-name" placeholder="Folder Name" value="${isEdit ? folder.name : ''}">
+                    <div class="modal-actions">
+                        <button class="btn-danger" onclick="app.modal.close()">Cancel</button>
+                        <button id="btn-save-folder">Save</button>
+                    </div>
+                `;
+                this.modal.open(html);
+                document.getElementById('btn-save-folder').onclick = () => {
+                    const name = document.getElementById('input-folder-name').value.trim();
+                    if (name) {
+                        this.bus.emit('folder:save', { id: isEdit ? folder.id : null, name });
+                        this.modal.close();
+                    }
+                };
+            }
+
+            _showBookmarkModal(bookmark = null) {
+                const isEdit = !!bookmark;
+                const html = `
+                    <h3>${isEdit ? 'Edit' : 'New'} Bookmark</h3>
+                    <input type="text" id="input-bm-title" placeholder="Title" value="${isEdit ? bookmark.title : ''}">
+                    <input type="url" id="input-bm-url" placeholder="https://example.com" value="${isEdit ? bookmark.url : ''}">
+                    <div class="modal-actions">
+                        <button class="btn-danger" onclick="app.modal.close()">Cancel</button>
+                        <button id="btn-save-bm">Save</button>
+                    </div>
+                `;
+                this.modal.open(html);
+                document.getElementById('btn-save-bm').onclick = () => {
+                    const title = document.getElementById('input-bm-title').value.trim();
+                    const url = document.getElementById('input-bm-url').value.trim();
+                    if (title && url) {
+                        this.bus.emit('bookmark:save', { id: isEdit ? bookmark.id : null, title, url });
+                        this.modal.close();
+                    }
+                };
+            }
+        }
+
+        // 10. MAIN APP CONTROLLER (Orchestrator)
+        class App {
+            constructor() {
+                this.bus = new EventBus();
+                this.store = new StateManager(this.bus);
+                this.modal = new ModalController();
+                this.dnd = new DragDropController(this.store, this.bus);
+                this.themeEngine = new ThemeEngine(this.store, this.bus);
+                this.qrService = new QRService(this.modal);
+                this.dataService = new DataService(this.store, this.bus);
+                this.ui = new UIRenderer(this.store, this.bus, this.modal, this.dnd);
+                
+                this._bindEvents();
+                this._bindUI();
+                this.themeEngine.init();
+                this.ui.renderAll();
+            }
+
+            _bindUI() {
+                document.getElementById('btn-add-folder').onclick = () => this.ui._showFolderModal();
+                document.getElementById('btn-add-bookmark').onclick = () => this.ui._showBookmarkModal();
+                
+                document.getElementById('btn-export').onclick = () => this.dataService.exportData();
+                document.getElementById('btn-import').onclick = () => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = '.json';
+                    input.onchange = (e) => {
+                        if (e.target.files.length > 0) {
+                            this.dataService.importData(e.target.files[0]);
+                        }
+                    };
+                    input.click();
+                };
+
+                document.getElementById('btn-share-qr').onclick = () => {
+                    const state = this.store.getState();
+                    const data = {
+                        folder: state.folders.find(f => f.id === state.activeFolder),
+                        bookmarks: state.bookmarks.filter(b => b.folderId === state.activeFolder)
+                    };
+                    this.qrService.show(data);
+                };
+            }
+
+            _bindEvents() {
+                this.bus.on('state:changed', () => this.ui.renderAll());
+
+                this.bus.on('folder:select', (id) => {
+                    this.store.update('activeFolder', id);
+                });
+
+                this.bus.on('folder:save', ({ id, name }) => {
+                    const state = this.store.getState();
+                    if (id) {
+                        state.folders = state.folders.map(f => f.id === id ? { ...f, name } : f);
+                    } else {
+                        state.folders.push({ id: Utils.generateId(), name, order: state.folders.length });
+                    }
+                    this.store.update('folders', state.folders);
+                });
+
+                this.bus.on('folder:delete', (id) => {
+                    if (!confirm('Delete folder and all its bookmarks?')) return;
+                    const state = this.store.getState();
+                    state.folders = state.folders.filter(f => f.id !== id);
+                    state.bookmarks = state.bookmarks.filter(b => b.folderId !== id);
+                    if (state.activeFolder === id) state.activeFolder = 'default';
+                    this.store.update('folders', state.folders);
+                    this.store.update('bookmarks', state.bookmarks);
+                    this.store.update('activeFolder', state.activeFolder);
+                });
+
+                // Folder Reordering Logic
+                this.bus.on('folder:reorder', ({ draggedFolderId, targetFolderId }) => {
+                    if (draggedFolderId === targetFolderId) return;
+                    const state = this.store.getState();
+                    const folders = [...state.folders].sort((a, b) => a.order - b.order);
+                    
+                    const draggedIdx = folders.findIndex(f => f.id === draggedFolderId);
+                    const targetIdx = folders.findIndex(f => f.id === targetFolderId);
+                    
+                    if (draggedIdx === -1 || targetIdx === -1) return;
+                    
+                    const [draggedFolder] = folders.splice(draggedIdx, 1);
+                    folders.splice(targetIdx, 0, draggedFolder);
+                    
+                    // Recalculate order indices
+                    folders.forEach((f, idx) => f.order = idx);
+                    this.store.update('folders', folders);
+                });
+
+                this.bus.on('bookmark:save', ({ id, title, url }) => {
+                    const state = this.store.getState();
+                    if (id) {
+                        state.bookmarks = state.bookmarks.map(b => b.id === id ? { ...b, title, url } : b);
+                    } else {
+                        state.bookmarks.push({ 
+                            id: Utils.generateId(), 
+                            folderId: state.activeFolder, 
+                            title, url, 
+                            order: state.bookmarks.length 
+                        });
+                    }
+                    this.store.update('bookmarks', state.bookmarks);
+                });
+
+                this.bus.on('bookmark:delete', (id) => {
+                    const state = this.store.getState();
+                    state.bookmarks = state.bookmarks.filter(b => b.id !== id);
+                    this.store.update('bookmarks', state.bookmarks);
+                });
+
+                this.bus.on('bookmark:move', ({ bookmarkId, targetFolderId }) => {
+                    const state = this.store.getState();
+                    state.bookmarks = state.bookmarks.map(b => 
+                        b.id === bookmarkId ? { ...b, folderId: targetFolderId } : b
+                    );
+                    this.store.update('bookmarks', state.bookmarks);
+                });
+
+                // Data Import Logic
+                this.bus.on('data:import', (data) => {
+                    if(confirm('This will replace your current bookmarks and folders. Continue?')) {
+                        let folders = data.folders;
+                        // Ensure the default folder always exists to prevent app breaking
+                        const hasDefault = folders.some(f => f.id === 'default');
+                        if(!hasDefault) {
+                            folders = [{ id: 'default', name: 'Default', order: 0 }, ...folders];
+                        }
+                        // Recalculate orders just in case the imported file is messy
+                        folders.forEach((f, idx) => f.order = idx);
+                        
+                        this.store.update('folders', folders);
+                        this.store.update('bookmarks', data.bookmarks);
+                        this.store.update('activeFolder', 'default');
+                    }
+                });
+            }
+        }
+
+        // Initialize Application
+        const app = new App();
+    </script>
+</body>
+</html>
