@@ -218,9 +218,14 @@
         function injectIntoHtml(html, baseUrl) {
             const viewport = `<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">`;
             const fluid = `<style id="wb-fluid">` +
-                `body{padding:0 2px;box-sizing:border-box;}` +
-                `img,video{max-width:100%;height:auto;display:block;margin:12px auto;}` +
-                `a{color:inherit;}` +
+                // 強制所有元素擠入單欄，手機無需縮放/橫向滾動
+                `*,*::before,*::after{max-width:100%!important;box-sizing:border-box!important}` +
+                `html,body{width:100%!important;overflow-x:hidden!important;margin:0!important;padding:0!important}` +
+                `body{padding:0 8px!important}` +
+                `img,video,iframe,svg,canvas{max-width:100%!important;height:auto!important;display:block!important;margin:12px auto!important}` +
+                `table{max-width:100%!important;overflow-x:auto!important;display:block!important}` +
+                `pre,code{max-width:100%!important;overflow-x:auto!important;white-space:pre-wrap!important;word-wrap:break-word!important;word-break:break-word!important}` +
+                `a{color:inherit!important}` +
                 `</style>`;
             const base = `<base href="${baseUrl}">`;
             // 注入 iframe 內部：鎖定縮放 + 攔截站內連結（保持在 wrapper 內）
