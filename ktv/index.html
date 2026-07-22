@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>KTV — 人聲消除</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* Header */
+        header {
+            flex: 0 0 auto;
+            padding: 10px 16px;
+            background: #16213e;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 1px solid #0f3460;
+            flex-wrap: wrap;
+        }
+        header .brand {
+            font-size: 1.2em;
+            font-weight: 700;
+            color: #e94560;
+            white-space: nowrap;
+        }
+        .url-bar {
+            flex: 1 1 200px;
+            display: flex;
+            gap: 6px;
+            min-width: 180px;
+        }
+        .url-bar input {
+            flex: 1;
+            padding: 6px 10px;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            background: #0f3460;
+            color: #eee;
+            font-size: 13px;
+            min-width: 0;
+        }
+        .url-bar button, .file-btn {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            background: #e94560;
+            color: #fff;
+            cursor: pointer;
+            font-size: 13px;
+            white-space: nowrap;
+        }
+        .file-btn { background: #533483; }
+        #file-input { display: none; }
+
+        /* Video area */
+        .video-area {
+            flex: 1 1 auto;
+            min-height: 0;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        video {
+            max-width: 100%;
+            max-height: 100%;
+            width: 100%;
+            height: auto;
+        }
+        .no-media {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            padding: 20px;
+        }
+        .no-media .icon { font-size: 3em; display: block; margin-bottom: 10px; }
+
+        /* Controls */
+        .ktv-controls {
+            flex: 0 0 auto;
+            padding: 12px 16px;
+            background: #16213e;
+            border-top: 1px solid #0f3460;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .ktv-toggle {
+            padding: 8px 20px;
+            border: 2px solid #e94560;
+            border-radius: 20px;
+            background: transparent;
+            color: #e94560;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .ktv-toggle.active {
+            background: #e94560;
+            color: #fff;
+        }
+        .vocal-slider-wrap {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 1 1 200px;
+            min-width: 150px;
+        }
+        .vocal-slider-wrap label {
+            font-size: 13px;
+            color: #aaa;
+            white-space: nowrap;
+        }
+        .vocal-slider-wrap input[type=range] {
+            flex: 1;
+            accent-color: #e94560;
+            min-width: 60px;
+        }
+        .vocal-slider-wrap .slider-val {
+            min-width: 36px;
+            text-align: right;
+            font-size: 13px;
+            color: #e94560;
+        }
+
+        /* Status */
+        .status {
+            font-size: 12px;
+            color: #aaa;
+        }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            header { padding: 8px 10px; gap: 8px; }
+            .ktv-controls { padding: 10px; gap: 8px; }
+            .ktv-toggle { padding: 6px 14px; font-size: 13px; }
+            body { overflow-x: hidden; }
+            *, *::before, *::after { max-width: 100% !important; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <span class="brand">🎤 KTV</span>
+    <div class="url-bar">
+        <input type="text" id="url-input" placeholder="貼上影片網址或音檔 URL…">
+        <button id="load-btn">載入</button>
+    </div>
+    <button class="file-btn" id="file-btn">📁 本機檔案</button>
+    <input type="file" id="file-input" accept="video/*,audio/*">
+    <span class="status" id="status-bar">準備就緒</span>
+</header>
+
+<div class="video-area" id="video-area">
+    <div class="no-media" id="no-media">
+        <span class="icon">🎵</span>
+        載入 MTV 影片或音檔即可開始<br>支援拖曳檔案到此處
+    </div>
+    <video id="player" controls crossorigin="anonymous" style="display:none"></video>
+</div>
+
+<div class="ktv-controls">
+    <button class="ktv-toggle" id="ktv-toggle" disabled>🎙️ 啟動 KTV</button>
+    <div class="vocal-slider-wrap">
+        <label>人聲</label>
+        <input type="range" id="vocal-slider" min="0" max="100" value="100" disabled>
+        <span class="slider-val" id="slider-val">100% 消除</span>
+    </div>
+</div>
+
+<script>
+(function(){
+    const player = document.getElementById('player');
+    const videoArea = document.getElementById('video-area');
+    const noMedia = document.getElementById('no-media');
+    const fileInput = document.getElementById('file-input');
+    const fileBtn = document.getElementById('file-btn');
+    const urlInput = document.getElementById('url-input');
+    const loadBtn = document.getElementById('load-btn');
+    const ktvToggle = document.getElementById('ktv-toggle');
+    const vocalSlider = document.getElementById('vocal-slider');
+    const sliderVal = document.getElementById('slider-val');
+    const statusBar = document.getElementById('status-bar');
+
+    let audioCtx = null;
+    let mediaSource = null;
+    let processor = null;
+    let ktvEnabled = false;
+    let vocalMix = 1; // 0 = dry, 1 = full vocal removal
+
+    // ---- Audio Context (must be created on user gesture) ----
+    function ensureAudioCtx() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+    }
+
+    // ---- KTV Processor ----
+    function setupKTV() {
+        if (processor) return; // already set up
+
+        const ctx = ensureAudioCtx();
+        if (!mediaSource) {
+            mediaSource = ctx.createMediaElementSource(player);
+        }
+
+        // ScriptProcessor: L-R phase cancellation
+        processor = ctx.createScriptProcessor(4096, 2, 2);
+        processor.onaudioprocess = function(e) {
+            const inL = e.inputBuffer.getChannelData(0);
+            const inR = e.inputBuffer.getChannelData(1);
+            const outL = e.outputBuffer.getChannelData(0);
+            const outR = e.outputBuffer.getChannelData(1);
+            const mix = vocalMix;
+            for (let i = 0; i < inL.length; i++) {
+                // Vocal-removed signal: L - R (center channel cancelled), halved to avoid clipping
+                const ktv = (inL[i] - inR[i]) * 0.5;
+                // Blend: dry * (1-mix) + ktv * mix
+                outL[i] = inL[i] * (1 - mix) + ktv * mix;
+                outR[i] = inR[i] * (1 - mix) + ktv * mix;
+            }
+        };
+
+        mediaSource.connect(processor);
+        processor.connect(ctx.destination);
+
+        statusBar.textContent = 'KTV 模式已就緒';
+    }
+
+    function destroyKTV() {
+        if (processor) {
+            processor.disconnect();
+            processor = null;
+        }
+        if (mediaSource) {
+            // Don't disconnect mediaSource — it stays connected for reuse
+        }
+    }
+
+    // ---- Toggle ----
+    function toggleKTV() {
+        if (ktvEnabled) {
+            destroyKTV();
+            ktvEnabled = false;
+            ktvToggle.classList.remove('active');
+            ktvToggle.textContent = '🎙️ 啟動 KTV';
+            vocalSlider.disabled = true;
+            statusBar.textContent = 'KTV 已關閉';
+        } else {
+            setupKTV();
+            ktvEnabled = true;
+            ktvToggle.classList.add('active');
+            ktvToggle.textContent = '🎤 KTV 開啟';
+            vocalSlider.disabled = false;
+            updateSliderLabel();
+            statusBar.textContent = 'KTV 模式已開啟';
+        }
+    }
+
+    // ---- Slider ----
+    function updateSliderLabel() {
+        const v = parseInt(vocalSlider.value);
+        vocalMix = v / 100;
+        if (v === 100) sliderVal.textContent = '100% 消除';
+        else if (v === 0) sliderVal.textContent = '原始';
+        else sliderVal.textContent = v + '% 消除';
+    }
+
+    // ---- Load media ----
+    function loadMedia(src) {
+        // Reset audio graph
+        destroyKTV();
+        ktvEnabled = false;
+        ktvToggle.classList.remove('active');
+        ktvToggle.textContent = '🎙️ 啟動 KTV';
+        ktvToggle.disabled = false;
+        vocalSlider.disabled = true;
+        vocalSlider.value = 100;
+        updateSliderLabel();
+
+        // Show player
+        noMedia.style.display = 'none';
+        player.style.display = 'block';
+        player.src = src;
+        player.load();
+        statusBar.textContent = '已載入，按播放後可啟動 KTV';
+    }
+
+    // ---- Event: file ----
+    fileBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', () => {
+        const file = fileInput.files[0];
+        if (!file) return;
+        const url = URL.createObjectURL(file);
+        loadMedia(url);
+        urlInput.value = file.name;
+    });
+
+    // ---- Event: URL ----
+    loadBtn.addEventListener('click', () => {
+        const url = urlInput.value.trim();
+        if (!url) return;
+        // Try to use a CORS proxy if needed
+        const proxied = '/proxy?url=' + encodeURIComponent(url);
+        loadMedia(proxied);
+    });
+    urlInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') loadBtn.click();
+    });
+
+    // ---- Drag & drop ----
+    videoArea.addEventListener('dragover', (e) => { e.preventDefault(); videoArea.style.opacity = '0.7'; });
+    videoArea.addEventListener('dragleave', () => { videoArea.style.opacity = '1'; });
+    videoArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        videoArea.style.opacity = '1';
+        const file = e.dataTransfer.files[0];
+        if (file && (file.type.startsWith('video/') || file.type.startsWith('audio/'))) {
+            const url = URL.createObjectURL(file);
+            loadMedia(url);
+            urlInput.value = file.name;
+        }
+    });
+
+    // ---- Toggle + slider events ----
+    ktvToggle.addEventListener('click', toggleKTV);
+    vocalSlider.addEventListener('input', updateSliderLabel);
+
+    // ---- Handle audio context on first play ----
+    player.addEventListener('play', () => {
+        ensureAudioCtx();
+    }, { once: false });
+
+})();
+</script>
+</body>
+</html>
