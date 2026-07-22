@@ -43,7 +43,7 @@
             outline: none;
         }
 
-        #go-btn, #settings-btn {
+        #go-btn {
             height: 34px;
             padding: 0 16px;
             background: #409eff;
@@ -55,47 +55,30 @@
             white-space: nowrap;
         }
 
-        #settings-btn {
-            background: #909399;
-        }
-
-        #settings-panel {
-            flex: 0 0 auto;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            background: #ffffff;
-            border-bottom: 1px solid #ebeef5;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-            padding: 12px;
-            box-sizing: border-box;
-            z-index: 99998;
-        }
-
-        #settings-panel.collapsed {
-            display: none;
-        }
-
-        .setting-row {
+        /* 字體控制與網址同列，節省空間 */
+        #font-control {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 6px;
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
+
+        #font-control .font-label {
             font-size: 13px;
-            color: #303133;
+            color: #606266;
         }
 
-        .setting-row label {
-            min-width: 64px;
+        #font-control input[type="range"] {
+            width: 96px;
+            accent-color: #409eff;
         }
 
-        .setting-row input[type="range"] {
-            flex: 1;
-        }
-
-        .setting-row .val {
-            min-width: 52px;
+        #font-size-val {
+            min-width: 40px;
             text-align: right;
             color: #409eff;
+            font-size: 13px;
             font-variant-numeric: tabular-nums;
         }
 
@@ -131,16 +114,12 @@
 
     <div id="control-bar">
         <input type="text" id="url-input" placeholder="輸入網址..." />
-        <button id="go-btn">前往</button>
-        <button id="settings-btn">設定</button>
-    </div>
-
-    <div id="settings-panel">
-        <div class="setting-row">
-            <label for="font-size">字體大小</label>
+        <div id="font-control">
+            <span class="font-label">字體</span>
             <input type="range" id="font-size" min="12" max="32" step="1" value="16" />
-            <span class="val" id="font-size-val">16px</span>
+            <span id="font-size-val">16px</span>
         </div>
+        <button id="go-btn">前往</button>
     </div>
 
     <div id="frame-wrap">
@@ -320,9 +299,6 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('settings-btn').addEventListener('click', () => {
-                document.getElementById('settings-panel').classList.toggle('collapsed');
-            });
             const app = new App();
             app.launch();
         });
