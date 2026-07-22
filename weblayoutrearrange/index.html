@@ -237,10 +237,42 @@
                 `var a=e.target.closest?e.target.closest('a'):null;` +
                 `if(a&&a.href&&/^https?:\\/\\//i.test(a.href)){e.preventDefault();` +
                 `parent.postMessage({__wbNav:a.href},'*');}});})();<\/script>`;
+            // JS 強制單欄：用 inline style 覆蓋網站原始樣式（比 CSS !important 更強）
+            const columnScript = `<script>(function(){` +
+                `function enforce(){` +
+                `var all=document.querySelectorAll('*');` +
+                `for(var i=0;i<all.length;i++){` +
+                `var el=all[i];` +
+                `el.style.setProperty('max-width','100%','important');` +
+                `el.style.setProperty('box-sizing','border-box','important');` +
+                `el.style.setProperty('word-break','break-word','important');` +
+                `el.style.setProperty('overflow-wrap','break-word','important');` +
+                `}` +
+                `var tabs=document.querySelectorAll('table');` +
+                `for(var j=0;j<tabs.length;j++){` +
+                `tabs[j].style.setProperty('display','block','important');` +
+                `tabs[j].style.setProperty('overflow-x','auto','important');` +
+                `tabs[j].style.setProperty('max-width','100%','important');` +
+                `}` +
+                `var pres=document.querySelectorAll('pre,code');` +
+                `for(var k=0;k<pres.length;k++){` +
+                `pres[k].style.setProperty('white-space','pre-wrap','important');` +
+                `pres[k].style.setProperty('overflow-x','auto','important');` +
+                `}` +
+                `document.documentElement.style.setProperty('overflow-x','hidden','important');` +
+                `document.body&&document.body.style.setProperty('overflow-x','hidden','important');` +
+                `}` +
+                `enforce();` +
+                `setTimeout(enforce,200);` +
+                `setTimeout(enforce,800);` +
+                `if(window.MutationObserver){` +
+                `new MutationObserver(function(){enforce()}).observe(document.documentElement,{childList:true,subtree:true,attributes:true});` +
+                `}` +
+                `})();<\/script>`;
             if (/<head[^>]*>/i.test(html)) {
-                return html.replace(/<head[^>]*>/i, (m) => m + viewport + base + fluid + navScript);
+                return html.replace(/<head[^>]*>/i, (m) => m + viewport + base + fluid + navScript + columnScript);
             }
-            return viewport + base + fluid + navScript + html;
+            return viewport + base + fluid + navScript + columnScript + html;
         }
 
         /**
