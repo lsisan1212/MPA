@@ -116,8 +116,8 @@
         <input type="text" id="url-input" placeholder="輸入網址..." />
         <div id="font-control">
             <span class="font-label">字體</span>
-            <input type="range" id="font-size" min="12" max="32" step="1" value="16" />
-            <span id="font-size-val">16px</span>
+            <input type="range" id="font-size" min="12" max="32" step="1" value="23" />
+            <span id="font-size-val">23px</span>
         </div>
         <button id="go-btn">前往</button>
     </div>
@@ -187,7 +187,7 @@
         class DisplaySettings {
             constructor(iframe) {
                 this.iframe = iframe;
-                this.fontSize = 16;
+                this.fontSize = 23;
                 this.userStyleId = 'wb-user-font';
                 this.input = document.getElementById('font-size');
                 this.val = document.getElementById('font-size-val');
