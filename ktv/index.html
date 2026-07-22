@@ -83,6 +83,9 @@
             color: #666;
             font-size: 14px;
             padding: 20px;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
         }
         .no-media .icon { font-size: 3em; display: block; margin-bottom: 10px; }
 
@@ -218,7 +221,12 @@
 
         const ctx = ensureAudioCtx();
         if (!mediaSource) {
-            mediaSource = ctx.createMediaElementSource(player);
+            try {
+                mediaSource = ctx.createMediaElementSource(player);
+            } catch(e) {
+                statusBar.textContent = '❌ 音訊初始化失敗（可能因 CORS），請用本機檔案';
+                return;
+            }
         }
 
         // ScriptProcessor: L-R phase cancellation
@@ -285,8 +293,16 @@
 
     // ---- Load media ----
     function loadMedia(src) {
-        // Reset audio graph
+        // Reset audio graph completely
         destroyKTV();
+        if (mediaSource) {
+            try { mediaSource.disconnect(); } catch(e) {}
+            mediaSource = null;
+        }
+        if (audioCtx) {
+            audioCtx.close().catch(()=>{});
+            audioCtx = null;
+        }
         ktvEnabled = false;
         ktvToggle.classList.remove('active');
         ktvToggle.textContent = '🎙️ 啟動 KTV';
@@ -317,9 +333,11 @@
     loadBtn.addEventListener('click', () => {
         const url = urlInput.value.trim();
         if (!url) return;
-        // Try to use a CORS proxy if needed
-        const proxied = '/proxy?url=' + encodeURIComponent(url);
-        loadMedia(proxied);
+        // 直接載入（GitHub Pages 無後端代理）
+        let target = url;
+        if (!/^https?:\/\//i.test(url)) target = 'https://' + url;
+        statusBar.textContent = '載入中…';
+        loadMedia(target);
     });
     urlInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') loadBtn.click();
@@ -347,6 +365,24 @@
     player.addEventListener('play', () => {
         ensureAudioCtx();
     }, { once: false });
+
+    // ---- Error handling ----
+    player.addEventListener('error', () => {
+        const err = player.error;
+        let msg = '載入失敗';
+        if (err) {
+            switch(err.code) {
+                case 1: msg = '影片載入中止'; break;
+                case 2: msg = '網路錯誤'; break;
+                case 3: msg = '無法解碼此影片格式'; break;
+                case 4: msg = '不支援的格式或 CORS 限制'; break;
+            }
+        }
+        statusBar.textContent = '❌ ' + msg;
+        player.style.display = 'none';
+        noMedia.style.display = 'flex';
+        noMedia.innerHTML = '<span class="icon">⚠️</span>' + msg + '<br><small>請嘗試本機檔案或確保網址是可直接存取的影片檔</small>';
+    });
 
 })();
 </script>
