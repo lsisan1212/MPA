@@ -213,99 +213,67 @@
         }
 
         /**
-         * 5. 提取文字 + 圖片，重建成乾淨單欄 HTML（完全繞過原始網站 CSS）
+         * 5. 注入完整 HTML（保留原始結構），用 CSS + inline-style JS 強制單欄
          */
-        function escapeHtml(s) {
-            return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
-        }
-
-        function findMainContent(doc) {
-            let el = doc.querySelector('article') || doc.querySelector('main');
-            if (el) return el;
-            // 嘗試 content/article/post 相關 class/id
-            const sel = '[id*="content"],[id*="article"],[id*="post"],[id*="entry"],[id*="main"],' +
-                        '[class*="content"],[class*="article"],[class*="post"],[class*="entry"],[class*="main"]';
-            const candidates = doc.querySelectorAll(sel);
-            if (candidates.length > 0) return candidates[0];
-            return doc.body;
-        }
-
-        function extractElements(root, baseUrl) {
-            const items = [];
-            const skipTags = new Set(['script','style','noscript','iframe','nav','footer','aside','header','form','button','input','select','textarea','svg']);
-            function walk(node) {
-                if (!node) return;
-                if (node.nodeType === 3) {
-                    const t = node.textContent.trim();
-                    if (t) items.push({ type: 'p', text: t });
-                    return;
-                }
-                if (node.nodeType !== 1) return;
-                const tag = (node.tagName || '').toLowerCase();
-                if (skipTags.has(tag)) return;
-                if (tag === 'img') {
-                    const src = node.getAttribute('src') || node.getAttribute('data-src') || '';
-                    const alt = node.getAttribute('alt') || '';
-                    if (src) {
-                        try { items.push({ type: 'img', src: new URL(src, baseUrl).href, alt }); }
-                        catch(_) { items.push({ type: 'img', src, alt }); }
-                    }
-                    return;
-                }
-                if (/^h[1-6]$/.test(tag)) { const t = node.textContent.trim(); if (t) items.push({ type: tag, text: t }); return; }
-                if (tag === 'p') { const t = node.textContent.trim(); if (t) items.push({ type: 'p', text: t }); return; }
-                if (tag === 'blockquote') { const t = node.textContent.trim(); if (t) items.push({ type: 'blockquote', text: t }); return; }
-                if (tag === 'pre') { const t = node.textContent; if (t) items.push({ type: 'pre', text: t }); return; }
-                if (tag === 'li') { const t = node.textContent.trim(); if (t) items.push({ type: 'li', text: t }); return; }
-                if (tag === 'a') {
-                    const t = node.textContent.trim();
-                    if (t) { const href = node.getAttribute('href') || ''; items.push({ type: 'a', text: t, href }); }
-                    return;
-                }
-                for (let c = node.firstChild; c; c = c.nextSibling) walk(c);
+        function injectIntoHtml(html, baseUrl) {
+            const viewport = `<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">`;
+            const fluid = `<style id="wb-fluid">` +
+                `html,body{overflow-x:hidden!important;margin:0!important;padding:0!important}` +
+                `img,svg,canvas,video{max-width:100%!important;height:auto!important}` +
+                `a{color:inherit!important}` +
+                `</style>`;
+            const base = `<base href="${baseUrl}">`;
+            const navScript = `<script>(function(){` +
+                `function block(e){if(e.touches&&e.touches.length>1)e.preventDefault();if(e.scale&&e.scale!==1)e.preventDefault();}` +
+                `document.addEventListener('touchstart',block,{passive:false});` +
+                `document.addEventListener('touchmove',block,{passive:false});` +
+                `document.addEventListener('click',function(e){` +
+                `var a=e.target.closest?e.target.closest('a'):null;` +
+                `if(a&&a.href&&/^https?:\\/\\//i.test(a.href)){e.preventDefault();` +
+                `parent.postMessage({__wbNav:a.href},'*');}});})();<\/script>`;
+            // JS 強制單欄：width + max-width + min-width 三管齊下（上次只設 max-width 不夠）
+            const columnScript = `<script>(function(){` +
+                `function enforce(){` +
+                `var all=document.querySelectorAll('*');` +
+                `for(var i=0;i<all.length;i++){` +
+                `var el=all[i];` +
+                `el.style.setProperty('width','auto','important');` +
+                `el.style.setProperty('max-width','100%','important');` +
+                `el.style.setProperty('min-width','0','important');` +
+                `el.style.setProperty('box-sizing','border-box','important');` +
+                `el.style.setProperty('word-break','break-word','important');` +
+                `el.style.setProperty('overflow-wrap','break-word','important');` +
+                `el.style.setProperty('flex-shrink','1','important');` +
+                `el.style.setProperty('flex-basis','auto','important');` +
+                `}` +
+                `document.documentElement.style.setProperty('overflow-x','hidden','important');` +
+                `document.body&&document.body.style.setProperty('overflow-x','hidden','important');` +
+                `var tabs=document.querySelectorAll('table');` +
+                `for(var j=0;j<tabs.length;j++){` +
+                `tabs[j].style.setProperty('display','block','important');` +
+                `tabs[j].style.setProperty('width','auto','important');` +
+                `tabs[j].style.setProperty('max-width','100%','important');` +
+                `tabs[j].style.setProperty('overflow-x','auto','important');` +
+                `}` +
+                `var pres=document.querySelectorAll('pre,code');` +
+                `for(var k=0;k<pres.length;k++){` +
+                `pres[k].style.setProperty('white-space','pre-wrap','important');` +
+                `pres[k].style.setProperty('overflow-x','auto','important');` +
+                `pres[k].style.setProperty('width','auto','important');` +
+                `}` +
+                `}` +
+                `enforce();` +
+                `setTimeout(enforce,100);` +
+                `setTimeout(enforce,500);` +
+                `setTimeout(enforce,1500);` +
+                `if(window.MutationObserver){` +
+                `new MutationObserver(function(){enforce()}).observe(document.documentElement,{childList:true,subtree:true,attributes:true});` +
+                `}` +
+                `})();<\/script>`;
+            if (/<head[^>]*>/i.test(html)) {
+                return html.replace(/<head[^>]*>/i, (m) => m + viewport + base + fluid + navScript + columnScript);
             }
-            walk(root);
-            return items;
-        }
-
-        function buildCleanHtml(items, baseUrl) {
-            const body = items.map(it => {
-                const t = escapeHtml(it.text || '');
-                const a = escapeHtml(it.alt || '');
-                switch (it.type) {
-                    case 'img': return `<img src="${escapeHtml(it.src)}" alt="${a}" loading="lazy">`;
-                    case 'h1': case 'h2': case 'h3': case 'h4': case 'h5': case 'h6':
-                        return `<${it.type}>${t}</${it.type}>`;
-                    case 'blockquote': return `<blockquote>${t}</blockquote>`;
-                    case 'pre': return `<pre>${t}</pre>`;
-                    case 'li': return `<li>${t}</li>`;
-                    case 'a': return `<a href="${escapeHtml(it.href)}">${t}</a>`;
-                    default: return `<p>${t}</p>`;
-                }
-            }).join('');
-            return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<base href="${escapeHtml(baseUrl)}">
-<style>
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;line-height:1.8;padding:12px;margin:0;color:#333;background:#fff;word-break:break-word;overflow-wrap:break-word}
-img{max-width:100%;height:auto;display:block;margin:16px auto;border-radius:4px}
-h1{font-size:1.7em;margin:20px 0 10px;line-height:1.3}
-h2{font-size:1.4em;margin:16px 0 8px;line-height:1.3}
-h3{font-size:1.15em;margin:14px 0 6px;line-height:1.4}
-p{margin:10px 0}
-blockquote{border-left:3px solid #409eff;padding:6px 12px;margin:12px 0;color:#666;background:#f0f7ff;border-radius:0 4px 4px 0}
-pre{background:#f5f5f7;padding:12px;border-radius:6px;overflow-x:auto;font-size:.9em;white-space:pre-wrap}
-li{margin:4px 0}
-a{color:#409eff;text-decoration:none}
-</style></head><body>${body}</body></html>`;
-        }
-
-        function extractAndRebuild(html, baseUrl) {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, 'text/html');
-            const main = findMainContent(doc);
-            const items = extractElements(main, baseUrl);
-            return buildCleanHtml(items, baseUrl);
+            return viewport + base + fluid + navScript + columnScript + html;
         }
 
         /**
@@ -339,7 +307,7 @@ a{color:#409eff;text-decoration:none}
                 this.overlay.textContent = '正在初始化系統並優化排版...';
                 try {
                     const html = await this.fetchRemoteContent(targetUrl);
-                    this.iframe.srcdoc = extractAndRebuild(html, targetUrl);
+                    this.iframe.srcdoc = injectIntoHtml(html, targetUrl);
                 } catch (err) {
                     this.overlay.style.display = 'flex';
                     this.overlay.style.color = '#f56c6c';
